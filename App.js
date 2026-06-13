@@ -14,8 +14,11 @@ import { NATIONS } from './src/nations';
 import { isWinner } from './src/position';
 import { submitSignup } from './src/signup';
 
-// Single master WhatsApp group invite. Replace with the real invite link.
-const WHATSAPP_GROUP_URL = 'https://chat.whatsapp.com/REPLACE_WITH_REAL_INVITE';
+// Single master WhatsApp group invite, configured via EXPO_PUBLIC_WHATSAPP_GROUP_URL
+// in .env (read at build time). Fallback is a dead placeholder.
+const WHATSAPP_GROUP_URL =
+  process.env.EXPO_PUBLIC_WHATSAPP_GROUP_URL ||
+  'https://chat.whatsapp.com/REPLACE_WITH_REAL_INVITE';
 
 // Minimal native-friendly dropdown: tap to cycle a labeled picker via a modal-less
 // inline list. Kept dependency-free for the 2-hour budget.

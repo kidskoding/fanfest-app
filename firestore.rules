@@ -14,8 +14,11 @@ service cloud.firestore {
                     && request.resource.data.country.size() <= 64
                     && request.resource.data.team is string
                     && request.resource.data.team.size() <= 64
-                    && request.resource.data.connectIntent is string
-                    && request.resource.data.connectIntent.size() <= 280
+                    && request.resource.data.lookingType is string
+                    && request.resource.data.lookingType.size() > 0
+                    && request.resource.data.lookingType.size() <= 64
+                    && request.resource.data.lookingGoal is string
+                    && request.resource.data.lookingGoal.size() <= 280
                     && request.resource.data.position is int;
       allow update, delete: if false;
     }
@@ -34,8 +37,11 @@ service cloud.firestore {
                     && request.resource.data.country.size() <= 64
                     && request.resource.data.team is string
                     && request.resource.data.team.size() <= 64
-                    && request.resource.data.connectIntent is string
-                    && request.resource.data.connectIntent.size() <= 280
+                    && request.resource.data.lookingType is string
+                    && request.resource.data.lookingType.size() > 0
+                    && request.resource.data.lookingType.size() <= 64
+                    && request.resource.data.lookingGoal is string
+                    && request.resource.data.lookingGoal.size() <= 280
                     && request.resource.data.position is int;
       allow update: if false;
     }

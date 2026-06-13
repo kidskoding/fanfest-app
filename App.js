@@ -15,51 +15,44 @@ import {
 } from 'react-native';
 import { NATIONS } from './src/nations';
 import { flagFor } from './src/flags';
+import { LOOKING_TYPES } from './src/lookingTypes';
 import { isWinner, WINNER_CUTOFF } from './src/position';
 import { submitSignup, subscribeToCount } from './src/signup';
 import { shareRank } from './src/share';
 import { buzz, playWinSound } from './src/celebrate';
 import env from './src/env';
 
-// Banner shown on any non-real-prod-deploy so a session can never be mistaken
-// for the live event app:
-//  - dev sandbox (writes to signups_dev) -> purple "DEV MODE"
-//  - LOCAL build forced to prod (writes REAL data) -> red warning
-//  - real production deploy -> nothing
-function DevBadge() {
-  if (env.isDev) {
-    return (
-      <View style={styles.devBadge} pointerEvents="none">
-        <Text style={styles.devBadgeText}>🛠 DEV MODE · writing to signups_dev (not event data)</Text>
-      </View>
-    );
-  }
-  if (env.isLocalBuild) {
-    return (
-      <View style={[styles.devBadge, styles.warnBadge]} pointerEvents="none">
-        <Text style={styles.devBadgeText}>⚠️ LOCAL BUILD · writing to REAL event data</Text>
-      </View>
-    );
-  }
-  return null;
-}
-
-// Single master WhatsApp group invite, configured via EXPO_PUBLIC_WHATSAPP_GROUP_URL
-// in .env (read at build time). Fallback is a dead placeholder.
 const WHATSAPP_GROUP_URL =
   process.env.EXPO_PUBLIC_WHATSAPP_GROUP_URL ||
   'https://chat.whatsapp.com/REPLACE_WITH_REAL_INVITE';
 
+// Design tokens — one accent, restrained neutrals.
+const C = {
+  paper: '#FFFFFF',
+  ink: '#0A0A0A',
+  sub: '#6B7280',
+  faint: '#9CA3AF',
+  line: '#E5E7EB',
+  lineFocus: '#0A0A0A',
+  accent: '#059669',
+  hero: '#0A0A0A',
+  heroText: '#FFFFFF',
+  heroSub: '#A1A1AA',
+  heroLine: '#27272A',
+  whatsapp: '#1FAF5A',
+  warn: '#DC2626',
+};
+
 // ---------------------------------------------------------------------------
-// PressableScale — any button gets a springy press-down bounce.
+// Primitives
 // ---------------------------------------------------------------------------
 function PressableScale({ children, style, onPress, disabled }) {
   const scale = useRef(new Animated.Value(1)).current;
   const to = (v) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: false, speed: 40, bounciness: 12 }).start();
+    Animated.spring(scale, { toValue: v, useNativeDriver: false, speed: 40, bounciness: 6 }).start();
   return (
     <Pressable
-      onPressIn={() => !disabled && to(0.93)}
+      onPressIn={() => !disabled && to(0.98)}
       onPressOut={() => to(1)}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
@@ -69,9 +62,6 @@ function PressableScale({ children, style, onPress, disabled }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// AnimatedCount — counts up from 0 to `value` for the big reveal number.
-// ---------------------------------------------------------------------------
 function AnimatedCount({ value, style }) {
   const anim = useRef(new Animated.Value(0)).current;
   const [display, setDisplay] = useState(0);
@@ -79,103 +69,129 @@ function AnimatedCount({ value, style }) {
     const id = anim.addListener((v) => setDisplay(Math.round(v.value)));
     Animated.timing(anim, {
       toValue: value,
-      duration: 1100,
+      duration: 1000,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
     return () => anim.removeListener(id);
   }, [value]);
-  return <Text style={style}>#{display}</Text>;
+  return <Text style={style}>#{display.toLocaleString()}</Text>;
 }
 
-// ---------------------------------------------------------------------------
-// Confetti — emoji rain on the win screen. Pure Animated, no dependency.
-// ---------------------------------------------------------------------------
-const CONFETTI = ['🎉', '⚽', '🏆', '🥳', '✨', '🎊', '🔥'];
-function Confetti({ count = 32, extra }) {
+// Geometric confetti — small colored bars, not emoji.
+const CONFETTI_COLORS = ['#059669', '#34D399', '#FACC15', '#60A5FA', '#FFFFFF'];
+function Confetti({ count = 36 }) {
   const { width, height } = useWindowDimensions();
-  // Weight the fan's team flag heavily so the rain feels personal.
-  const pool = useMemo(
-    () => (extra ? [extra, extra, extra, ...CONFETTI] : CONFETTI),
-    [extra]
-  );
   const pieces = useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
         key: i,
-        emoji: pool[i % pool.length],
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
         x: Math.random() * width,
-        delay: Math.random() * 600,
-        duration: 2200 + Math.random() * 1600,
-        size: 20 + Math.random() * 18,
+        delay: Math.random() * 500,
+        duration: 2400 + Math.random() * 1600,
+        w: 5 + Math.random() * 4,
+        h: 10 + Math.random() * 8,
         fall: new Animated.Value(0),
       })),
-    [width, count, pool]
+    [width, count]
   );
   useEffect(() => {
-    const anims = pieces.map((p) =>
-      Animated.timing(p.fall, {
-        toValue: 1,
-        duration: p.duration,
-        delay: p.delay,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      })
-    );
-    Animated.parallel(anims).start();
+    Animated.parallel(
+      pieces.map((p) =>
+        Animated.timing(p.fall, {
+          toValue: 1,
+          duration: p.duration,
+          delay: p.delay,
+          easing: Easing.linear,
+          useNativeDriver: false,
+        })
+      )
+    ).start();
   }, [pieces]);
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {pieces.map((p) => (
-        <Animated.Text
+        <Animated.View
           key={p.key}
           style={{
             position: 'absolute',
             left: p.x,
-            fontSize: p.size,
+            width: p.w,
+            height: p.h,
+            borderRadius: 1.5,
+            backgroundColor: p.color,
+            opacity: p.fall.interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }),
             transform: [
-              { translateY: p.fall.interpolate({ inputRange: [0, 1], outputRange: [-60, height + 60] }) },
-              {
-                rotate: p.fall.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '540deg'] }),
-              },
+              { translateY: p.fall.interpolate({ inputRange: [0, 1], outputRange: [-40, height + 40] }) },
+              { rotate: p.fall.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '420deg'] }) },
             ],
           }}
-        >
-          {p.emoji}
-        </Animated.Text>
+        />
       ))}
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// FlagPicker — searchable dropdown with flag emojis.
-// ---------------------------------------------------------------------------
-function FlagPicker({ label, value, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return q ? NATIONS.filter((n) => n.toLowerCase().includes(q)) : NATIONS;
-  }, [search]);
+// Labeled text input with a focus ring.
+function TextField({ label, optional, value, onChangeText, placeholder, maxLength, autoFocus }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <PressableScale style={styles.input} onPress={() => setOpen((o) => !o)}>
-        <Text style={value ? styles.inputText : styles.placeholder}>
-          {value ? `${flagFor(value)}  ${value}` : `Tap to choose ${label.toLowerCase()}…`}
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {optional && <Text style={styles.optional}>Optional</Text>}
+      </View>
+      <TextInput
+        style={[styles.input, focused && styles.inputFocus]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={C.faint}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+    </View>
+  );
+}
+
+// Dropdown select. `searchable` adds a filter; `leading` renders a prefix per row.
+function SelectField({ label, optional, value, options, onSelect, placeholder, searchable, leading }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
+  }, [query, options]);
+  return (
+    <View style={styles.field}>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {optional && <Text style={styles.optional}>Optional</Text>}
+      </View>
+      <Pressable
+        style={[styles.input, styles.selectRow, open && styles.inputFocus]}
+        onPress={() => setOpen((o) => !o)}
+      >
+        <Text style={value ? styles.inputText : styles.placeholder} numberOfLines={1}>
+          {value ? `${leading ? leading(value) + '  ' : ''}${value}` : placeholder}
         </Text>
-      </PressableScale>
+        <Text style={[styles.chevron, open && styles.chevronOpen]}>⌄</Text>
+      </Pressable>
       {open && (
         <View style={styles.dropdown}>
-          <TextInput
-            style={styles.search}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="🔍  Search…"
-            placeholderTextColor="#999"
-            autoFocus
-          />
+          {searchable && (
+            <TextInput
+              style={styles.search}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search"
+              placeholderTextColor={C.faint}
+              autoFocus
+            />
+          )}
           <ScrollView style={styles.dropdownScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
             {filtered.map((opt) => (
               <Pressable
@@ -183,16 +199,17 @@ function FlagPicker({ label, value, onSelect }) {
                 style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
                 onPress={() => {
                   onSelect(opt);
-                  setSearch('');
+                  setQuery('');
                   setOpen(false);
                 }}
               >
-                <Text style={styles.optionText}>
-                  {flagFor(opt)}  {opt}
+                <Text style={styles.optionText} numberOfLines={1}>
+                  {leading ? `${leading(opt)}  ` : ''}
+                  {opt}
                 </Text>
               </Pressable>
             ))}
-            {filtered.length === 0 && <Text style={styles.noMatch}>No match 🤷</Text>}
+            {filtered.length === 0 && <Text style={styles.noMatch}>No matches</Text>}
           </ScrollView>
         </View>
       )}
@@ -200,27 +217,39 @@ function FlagPicker({ label, value, onSelect }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// LiveTicker — social-proof count of fans already signed up.
-// ---------------------------------------------------------------------------
-function LiveTicker() {
+// Small live count with a pulsing status dot.
+function LiveCount() {
   const [count, setCount] = useState(null);
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0.4)).current;
   useEffect(() => subscribeToCount(setCount), []);
   useEffect(() => {
-    if (count == null) return;
-    Animated.sequence([
-      Animated.timing(pulse, { toValue: 1.25, duration: 160, useNativeDriver: false }),
-      Animated.spring(pulse, { toValue: 1, useNativeDriver: false, bounciness: 14 }),
-    ]).start();
-  }, [count]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 900, useNativeDriver: false }),
+      ])
+    ).start();
+  }, []);
   if (count == null) return null;
   return (
-    <Animated.View style={[styles.ticker, { transform: [{ scale: pulse }] }]}>
-      <Text style={styles.tickerText}>
-        🔥 {count} {count === 1 ? 'fan has' : 'fans have'} joined the FanFest
+    <View style={styles.live}>
+      <Animated.View style={[styles.liveDot, { opacity: pulse }]} />
+      <Text style={styles.liveText}>
+        {count > 0 ? `${count.toLocaleString()} ${count === 1 ? 'fan' : 'fans'} joined` : 'Be the first to join'}
       </Text>
-    </Animated.View>
+    </View>
+  );
+}
+
+// Build / environment indicator. Renders only off the real production deploy.
+function EnvBadge() {
+  if (!env.isDev && !env.isLocalBuild) return null;
+  const danger = env.isLocalBuild && !env.isDev;
+  return (
+    <View style={[styles.envBadge, danger && styles.envBadgeDanger]} pointerEvents="none">
+      <View style={[styles.envDot, { backgroundColor: danger ? C.warn : C.accent }]} />
+      <Text style={styles.envText}>{danger ? 'LOCAL · writing to production data' : 'DEV · sandbox data'}</Text>
+    </View>
   );
 }
 
@@ -231,49 +260,41 @@ export default function App() {
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
   const [team, setTeam] = useState('');
-  const [connectIntent, setConnectIntent] = useState('');
+  const [lookingType, setLookingType] = useState('');
+  const [lookingGoal, setLookingGoal] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [position, setPosition] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
-  // Entrance + CTA pulse animations.
   const entrance = useRef(new Animated.Value(0)).current;
-  const ctaPulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.timing(entrance, {
       toValue: 1,
-      duration: 600,
+      duration: 500,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(ctaPulse, { toValue: 1.04, duration: 800, useNativeDriver: false }),
-        Animated.timing(ctaPulse, { toValue: 1, duration: 800, useNativeDriver: false }),
-      ])
-    ).start();
   }, []);
 
-  // Win celebration: fire sound + haptic once a winning position lands.
   useEffect(() => {
     if (position === null) return;
-    buzz(isWinner(position) ? [60, 30, 120, 30, 220] : 40);
+    buzz(isWinner(position) ? [50, 30, 110] : 30);
     if (isWinner(position)) playWinSound();
   }, [position]);
 
-  const canSubmit = name.trim() && country && team && !submitting;
+  const canSubmit = !!name.trim() && !!lookingType && !submitting;
 
   const onSubmit = async () => {
     if (!canSubmit) return;
-    buzz(20);
+    buzz(15);
     setSubmitting(true);
     setError('');
     try {
-      const pos = await submitSignup({ name, country, team, connectIntent });
+      const pos = await submitSignup({ name, country, team, lookingType, lookingGoal });
       setPosition(pos);
     } catch (e) {
-      setError('Something went wrong. Try again. 😬');
+      setError('Something went wrong. Please try again.');
       setSubmitting(false);
     }
   };
@@ -282,227 +303,238 @@ export default function App() {
 
   const onShare = async () => {
     const status = await shareRank({ name, position, team, won: isWinner(position) });
-    if (status === 'copied') setToast('Link copied — paste it anywhere! 📋');
-    else if (status === 'shared') setToast('Shared! 🙌');
-    else if (status === 'unsupported') setToast('Sharing not supported on this device 🤷');
+    if (status === 'copied') setToast('Link copied');
+    else if (status === 'shared') setToast('Shared');
+    else if (status === 'unsupported') setToast('Sharing unavailable on this device');
     if (status !== 'cancelled') setTimeout(() => setToast(''), 2400);
   };
 
-  // ---- Result / win screen ----
+  // ---- Result ----
   if (position !== null) {
     const won = isWinner(position);
-    const spotsLeft = Math.max(0, WINNER_CUTOFF - position);
+    const meta = [country, team && `${team} supporter`].filter(Boolean).join('  ·  ');
     return (
-      <View style={[styles.container, styles.resultBg, styles.resultPad]}>
-        <DevBadge />
-        {won && <Confetti extra={flagFor(team)} />}
-        <View style={styles.resultBox}>
-          <Text style={styles.kicker}>{won ? "YOU'RE IN. AND YOU WON. 🏆" : "YOU'RE IN. 🎟️"}</Text>
-          <AnimatedCount value={position} style={styles.bigNumber} />
-          <Text style={styles.identity}>
-            {flagFor(country)} {name.trim()} · {flagFor(team)} {team} fan
-          </Text>
-          <Text style={styles.resultText}>
+      <View style={[styles.screen, styles.heroScreen]}>
+        <EnvBadge />
+        {won && <Confetti />}
+        <View style={styles.heroBody}>
+          <Text style={styles.heroEyebrow}>{won ? 'TOP 100 · PRIZE SECURED' : "YOU'RE ON THE LIST"}</Text>
+          <AnimatedCount value={position} style={styles.heroNumber} />
+          <Text style={styles.heroName}>{name.trim()}</Text>
+          {meta ? <Text style={styles.heroMeta}>{meta}</Text> : null}
+          <Text style={styles.heroCopy}>
             {won
-              ? `Top ${WINNER_CUTOFF} — you bagged one of the prizes! 🎉`
-              : `First ${WINNER_CUTOFF} win. You just missed it by ${position - WINNER_CUTOFF} — but the early birds at the next drop win. ⚡`}
+              ? 'You’re one of the first 100. Your prize is reserved — show this screen at the booth.'
+              : `The first ${WINNER_CUTOFF} win. Share your rank to climb as spots open up.`}
           </Text>
-          {won && (
-            <View style={styles.progressWrap}>
-              <View style={[styles.progressFill, { width: `${(position / WINNER_CUTOFF) * 100}%` }]} />
-              <Text style={styles.progressText}>{spotsLeft} winning spots left after you</Text>
-            </View>
-          )}
-          <PressableScale style={styles.whatsappBtn} onPress={openWhatsApp}>
-            <Text style={styles.whatsappBtnText}>💬  Join the FanFest WhatsApp</Text>
+
+          <PressableScale style={styles.primaryOnHero} onPress={openWhatsApp}>
+            <Text style={styles.primaryOnHeroText}>Join the community on WhatsApp</Text>
           </PressableScale>
-          <PressableScale style={styles.shareBtn} onPress={onShare}>
-            <Text style={styles.shareBtnText}>📣  Share my rank & challenge friends</Text>
+          <PressableScale style={styles.secondaryOnHero} onPress={onShare}>
+            <Text style={styles.secondaryOnHeroText}>Share my rank</Text>
           </PressableScale>
           {toast ? <Text style={styles.toast}>{toast}</Text> : null}
         </View>
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
       </View>
     );
   }
 
-  // ---- Signup form ----
+  // ---- Signup ----
   return (
     <ScrollView
-      style={styles.container}
+      style={styles.screen}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <DevBadge />
+      <EnvBadge />
       <Animated.View
         style={{
           opacity: entrance,
-          transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+          transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
         }}
       >
-        <Text style={styles.title}>FanFest 2026 ⚽</Text>
+        <Text style={styles.eyebrow}>FIFA WORLD CUP 2026</Text>
+        <Text style={styles.title}>FanFest</Text>
         <Text style={styles.subtitle}>
-          Sign up, join the squad, win one of {WINNER_CUTOFF} prizes. The earlier you are, the better your odds. 🔥
+          Reserve your spot, join the fan community, and enter to win one of {WINNER_CUTOFF} prizes. The earlier
+          you sign up, the better your odds.
         </Text>
 
-        <LiveTicker />
+        <LiveCount />
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Your name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="What should we call you?"
-            placeholderTextColor="#999"
-            maxLength={100}
+        <View style={styles.form}>
+          <TextField label="Full name" value={name} onChangeText={setName} placeholder="Jordan Smith" maxLength={100} />
+
+          <SelectField
+            label="Country"
+            optional
+            value={country}
+            options={NATIONS}
+            onSelect={setCountry}
+            placeholder="Select your country"
+            searchable
+            leading={flagFor}
           />
-        </View>
+          <SelectField
+            label="Team you support"
+            optional
+            value={team}
+            options={NATIONS}
+            onSelect={setTeam}
+            placeholder="Select a team"
+            searchable
+            leading={flagFor}
+          />
 
-        <FlagPicker label="Your country" value={country} onSelect={setCountry} />
-        <FlagPicker label="Team you're rooting for" value={team} onSelect={setTeam} />
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Who do you want to meet? (optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={connectIntent}
-            onChangeText={setConnectIntent}
-            placeholder="e.g. fellow Japan fans 🇯🇵"
-            placeholderTextColor="#999"
+          <SelectField
+            label="I'm looking to"
+            value={lookingType}
+            options={LOOKING_TYPES}
+            onSelect={setLookingType}
+            placeholder="Choose one"
+          />
+          <TextField
+            label="Your goal"
+            optional
+            value={lookingGoal}
+            onChangeText={setLookingGoal}
+            placeholder="Find Japan fans for the final"
             maxLength={280}
           />
-        </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Animated.View style={{ transform: [{ scale: canSubmit ? ctaPulse : 1 }] }}>
           <PressableScale
-            style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+            style={[styles.primary, !canSubmit && styles.primaryDisabled]}
             onPress={onSubmit}
             disabled={!canSubmit}
           >
-            <Text style={styles.submitBtnText}>
-              {submitting ? 'Locking your spot… ⏳' : "Claim my spot 🚀"}
-            </Text>
+            <Text style={styles.primaryText}>{submitting ? 'Reserving…' : 'Reserve my spot'}</Text>
           </PressableScale>
-        </Animated.View>
+          <Text style={styles.fineprint}>No spam. One entry per person.</Text>
+        </View>
       </Animated.View>
-
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </ScrollView>
   );
 }
 
+const SHADOW = {
+  shadowColor: '#000',
+  shadowOpacity: 0.06,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: Platform.OS === 'web' ? 40 : 60, paddingBottom: 60 },
-  devBadge: { backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 14 },
-  warnBadge: { backgroundColor: '#DC2626' },
-  devBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12, textAlign: 'center' },
-  resultPad: { paddingTop: Platform.OS === 'web' ? 14 : 52, paddingHorizontal: 16 },
-  title: { fontSize: 34, fontWeight: '900', color: '#111', letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, color: '#555', marginTop: 6, marginBottom: 16, lineHeight: 21 },
-
-  ticker: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF4E5',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginBottom: 20,
+  screen: { flex: 1, backgroundColor: C.paper },
+  content: {
+    padding: 24,
+    paddingTop: Platform.OS === 'web' ? 56 : 72,
+    paddingBottom: 64,
+    maxWidth: 520,
+    width: '100%',
+    alignSelf: 'center',
   },
-  tickerText: { color: '#B8540A', fontWeight: '700', fontSize: 13 },
 
-  field: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6 },
+  eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5, color: C.accent },
+  title: { fontSize: 40, fontWeight: '800', color: C.ink, letterSpacing: -1.2, marginTop: 8 },
+  subtitle: { fontSize: 15.5, color: C.sub, marginTop: 10, lineHeight: 23 },
+
+  live: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.accent, marginRight: 8 },
+  liveText: { fontSize: 13, fontWeight: '600', color: C.sub },
+
+  form: { marginTop: 28 },
+  field: { marginBottom: 18 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 },
+  label: { fontSize: 13.5, fontWeight: '600', color: C.ink },
+  optional: { fontSize: 12, color: C.faint, fontWeight: '500' },
+
   input: {
-    borderWidth: 1.5,
-    borderColor: '#e3e3e3',
-    borderRadius: 12,
-    padding: 14,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: C.ink,
+    backgroundColor: C.paper,
   },
-  inputText: { fontSize: 16, color: '#111', fontWeight: '600' },
-  placeholder: { fontSize: 16, color: '#999' },
+  inputFocus: { borderColor: C.lineFocus },
+  inputText: { fontSize: 16, color: C.ink },
+  placeholder: { fontSize: 16, color: C.faint },
+  selectRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chevron: { fontSize: 18, color: C.faint, marginLeft: 8, marginTop: -4 },
+  chevronOpen: { color: C.ink },
 
   dropdown: {
-    borderWidth: 1.5,
-    borderColor: '#e3e3e3',
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 10,
     marginTop: 6,
-    maxHeight: 280,
+    maxHeight: 264,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: C.paper,
+    ...SHADOW,
   },
   search: {
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     fontSize: 15,
+    color: C.ink,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: '#fafafa',
+    borderBottomColor: C.line,
   },
-  dropdownScroll: { maxHeight: 230 },
-  option: { paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f4f4f4' },
-  optionPressed: { backgroundColor: '#f0f7ff' },
-  optionText: { fontSize: 16, color: '#111' },
-  noMatch: { padding: 16, color: '#888', textAlign: 'center' },
+  dropdownScroll: { maxHeight: 216 },
+  option: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  optionPressed: { backgroundColor: '#F9FAFB' },
+  optionText: { fontSize: 15.5, color: C.ink },
+  noMatch: { padding: 16, color: C.faint, textAlign: 'center', fontSize: 14 },
 
-  submitBtn: {
-    backgroundColor: '#111',
-    borderRadius: 14,
-    padding: 17,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  submitBtnDisabled: { backgroundColor: '#c4c4c4', shadowOpacity: 0 },
-  submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  error: { color: '#c00', marginBottom: 12, fontWeight: '600' },
+  error: { color: C.warn, fontSize: 14, fontWeight: '500', marginBottom: 14 },
 
-  resultBg: { backgroundColor: '#0B1020' },
-  resultBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28 },
-  kicker: { fontSize: 16, color: '#9db2ff', fontWeight: '800', letterSpacing: 1, textAlign: 'center' },
-  bigNumber: { fontSize: 96, fontWeight: '900', color: '#fff', marginVertical: 6 },
-  identity: { fontSize: 16, color: '#9db2ff', fontWeight: '700', marginBottom: 14, textAlign: 'center' },
-  resultText: { fontSize: 18, color: '#cdd3e6', textAlign: 'center', marginBottom: 28, lineHeight: 25 },
+  primary: { backgroundColor: C.ink, borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginTop: 6 },
+  primaryDisabled: { backgroundColor: '#D1D5DB' },
+  primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  fineprint: { fontSize: 12.5, color: C.faint, textAlign: 'center', marginTop: 14 },
 
-  progressWrap: {
-    width: '100%',
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginBottom: 28,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#25D366', opacity: 0.35 },
-  progressText: { color: '#fff', fontWeight: '700', textAlign: 'center', fontSize: 13 },
+  // Hero / result
+  heroScreen: { backgroundColor: C.hero },
+  heroBody: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, maxWidth: 520, width: '100%', alignSelf: 'center' },
+  heroEyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5, color: C.accent },
+  heroNumber: { fontSize: 84, fontWeight: '800', color: C.heroText, letterSpacing: -2, marginTop: 8 },
+  heroName: { fontSize: 22, fontWeight: '700', color: C.heroText, marginTop: 4 },
+  heroMeta: { fontSize: 14, color: C.heroSub, marginTop: 6 },
+  heroCopy: { fontSize: 16, color: C.heroSub, marginTop: 18, lineHeight: 24 },
 
-  whatsappBtn: {
-    backgroundColor: '#25D366',
-    borderRadius: 14,
-    paddingVertical: 17,
-    paddingHorizontal: 30,
-    shadowColor: '#25D366',
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  whatsappBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-
-  shareBtn: {
-    marginTop: 14,
-    borderRadius: 14,
+  primaryOnHero: { backgroundColor: C.whatsapp, borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginTop: 28 },
+  primaryOnHeroText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  secondaryOnHero: {
+    borderRadius: 10,
     paddingVertical: 15,
-    paddingHorizontal: 26,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: C.heroLine,
   },
-  shareBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  toast: { marginTop: 16, color: '#9be8b0', fontWeight: '700', fontSize: 14, textAlign: 'center' },
+  secondaryOnHeroText: { color: C.heroText, fontSize: 15, fontWeight: '600' },
+  toast: { marginTop: 16, color: '#86EFAC', fontWeight: '600', fontSize: 13.5, textAlign: 'center' },
+
+  // Env badge
+  envBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  envBadgeDanger: { backgroundColor: '#FEF2F2' },
+  envDot: { width: 6, height: 6, borderRadius: 3, marginRight: 7 },
+  envText: { fontSize: 11.5, fontWeight: '700', color: C.sub, letterSpacing: 0.3 },
 });

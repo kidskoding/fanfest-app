@@ -30,7 +30,7 @@ export function subscribeToCount(cb) {
 // Atomically assigns a 1-based signup position and writes the signup doc.
 // Returns the assigned position. Race-safe: two concurrent signups never
 // collide on a number because the counter read+write is inside one transaction.
-export async function submitSignup({ name, country, team, connectIntent }) {
+export async function submitSignup({ name, country, team, lookingType, lookingGoal }) {
   const counterRef = doc(db, 'counters', COUNTER_ID);
   const signupRef = doc(collection(db, SIGNUPS));
 
@@ -41,9 +41,10 @@ export async function submitSignup({ name, country, team, connectIntent }) {
 
     tx.set(signupRef, {
       name: name.trim(),
-      country,
-      team,
-      connectIntent: (connectIntent || '').trim(),
+      country: country || '', // optional
+      team: team || '', // optional
+      lookingType,
+      lookingGoal: (lookingGoal || '').trim(), // optional
       position: pos,
       createdAt: serverTimestamp(),
     });

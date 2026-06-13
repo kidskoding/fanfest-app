@@ -1,6 +1,24 @@
-import { doc, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  collection,
+  onSnapshot,
+  runTransaction,
+  serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { nextPosition } from './position';
+
+// Live-subscribe to the total signup count (the counters/signups doc).
+// Calls `cb(count)` on every change. Returns the unsubscribe fn.
+// Reads are allowed on counters/* by the Firestore rules.
+export function subscribeToCount(cb) {
+  const counterRef = doc(db, 'counters', 'signups');
+  return onSnapshot(
+    counterRef,
+    (snap) => cb(snap.exists() ? snap.data().count || 0 : 0),
+    () => cb(0)
+  );
+}
 
 // Atomically assigns a 1-based signup position and writes the signup doc.
 // Returns the assigned position. Race-safe: two concurrent signups never

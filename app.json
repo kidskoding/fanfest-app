@@ -21,7 +21,7 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "FanFest",
+      "name": "Fanfest Dallas/Arlington 2026",
       "shortName": "FanFest",
       "display": "standalone",
       "themeColor": "#111111",

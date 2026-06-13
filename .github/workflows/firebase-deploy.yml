@@ -29,6 +29,12 @@ jobs:
 
       - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0.10.0
+        # v0.10.0 (latest tag) still declares the Node 20 runtime, which GitHub
+        # forces to Node 24 on 2026-06-16 and removes on 2026-09-16. Opt into
+        # Node 24 now so the deploy keeps working; drop this once the action
+        # ships a release built on node24.
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

@@ -34,6 +34,10 @@ jobs:
 
       - name: Deploy preview channel
         uses: FirebaseExtended/action-hosting-deploy@v0.10.0
+        # Opt into Node 24: v0.10.0 still declares the Node 20 runtime, forced
+        # off on 2026-06-16. Drop once the action ships a node24 release.
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

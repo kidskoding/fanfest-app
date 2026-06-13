@@ -71,6 +71,9 @@ const FLAG_FONT =
 const openMaps = (q) =>
   Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`);
 
+// Pre-generated branded QR (join the WhatsApp community) shown on the ticket.
+const QR_WHATSAPP = require('./assets/qr/fanfest-whatsapp-branded.png');
+
 // ---------------------------------------------------------------------------
 // Primitives
 // ---------------------------------------------------------------------------
@@ -281,6 +284,42 @@ function LiveCount() {
   );
 }
 
+// Themed event ticket — the fan's keepsake after registering, with the QR to
+// join the community.
+function TicketCard({ name, position, country, team, lookingType }) {
+  const metaBits = [country, team && `${team} fan`, lookingType].filter(Boolean);
+  return (
+    <View style={styles.ticket}>
+      <View style={styles.ticketStub}>
+        <Text style={styles.ticketStubText}>WORLD CUP 2026 · FANFEST</Text>
+        <Text style={styles.ticketStubText}>ADMIT ONE</Text>
+      </View>
+      <View style={styles.ticketBody}>
+        <Text style={styles.ticketEyebrow}>FANFEST DALLAS / ARLINGTON</Text>
+        <Text style={styles.ticketName} numberOfLines={1}>{name.trim()}</Text>
+        <View style={styles.ticketRow}>
+          <View>
+            <Text style={styles.ticketLabel}>FAN</Text>
+            <Text style={styles.ticketNum}>#{position.toLocaleString()}</Text>
+          </View>
+          <View style={styles.ticketFlags}>
+            {country ? <Text style={styles.ticketFlag}>{flagFor(country)}</Text> : null}
+            {team ? <Text style={styles.ticketFlag}>{flagFor(team)}</Text> : null}
+          </View>
+        </View>
+        {metaBits.length ? (
+          <Text style={styles.ticketMeta} numberOfLines={1}>{metaBits.join('  ·  ')}</Text>
+        ) : null}
+      </View>
+      <View style={styles.perf} />
+      <View style={styles.ticketQrWrap}>
+        <Image source={QR_WHATSAPP} style={styles.ticketQr} resizeMode="contain" />
+        <Text style={styles.ticketQrLabel}>Scan to join the community</Text>
+      </View>
+    </View>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Join screen — signup form + welcome result
 // ---------------------------------------------------------------------------
@@ -332,18 +371,18 @@ function JoinScreen({ onJoined, onExplore }) {
   };
 
   if (result) {
-    const meta = [country, team && `${team} supporter`].filter(Boolean).join('  ·  ');
     return (
-      <View style={[styles.screen, styles.heroScreen]}>
+      <ScrollView style={[styles.screen, styles.heroScreen]} contentContainerStyle={styles.ticketScreen}>
         <Confetti />
-        <View style={styles.heroBody}>
-          <Text style={styles.heroEyebrow}>YOU'RE IN · FAN</Text>
-          <AnimatedCount value={result.position} style={styles.heroNumber} />
-          <Text style={styles.heroName}>{name.trim()}</Text>
-          {meta ? <Text style={styles.heroMeta}>{meta}</Text> : null}
-          <Text style={styles.heroCopy}>
-            Welcome to the FanFest community. Meet other fans, find a watch party, and jump into the group chat.
-          </Text>
+        <Text style={styles.ticketTop}>YOU'RE IN — HERE'S YOUR TICKET</Text>
+        <TicketCard
+          name={name}
+          position={result.position}
+          country={country}
+          team={team}
+          lookingType={lookingType}
+        />
+        <View style={styles.ticketActions}>
           <PressableScale style={styles.primaryOnHero} onPress={openWhatsApp}>
             <Text style={styles.primaryOnHeroText}>Join the community on WhatsApp</Text>
           </PressableScale>
@@ -356,7 +395,7 @@ function JoinScreen({ onJoined, onExplore }) {
           {toast ? <Text style={styles.toast}>{toast}</Text> : null}
         </View>
         <StatusBar style="light" />
-      </View>
+      </ScrollView>
     );
   }
 
@@ -759,6 +798,27 @@ const styles = StyleSheet.create({
   ghostOnHero: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   ghostOnHeroText: { color: C.heroSub, fontSize: 14, fontWeight: '600' },
   toast: { marginTop: 14, color: '#86EFAC', fontWeight: '600', fontSize: 13.5, textAlign: 'center' },
+
+  // Ticket
+  ticketScreen: { padding: 24, paddingTop: Platform.OS === 'web' ? 48 : 72, paddingBottom: 96, alignItems: 'center' },
+  ticketTop: { color: C.heroSub, fontSize: 12.5, fontWeight: '800', letterSpacing: 1.5, marginBottom: 16, textAlign: 'center' },
+  ticket: { width: '100%', maxWidth: 380, backgroundColor: C.paper, borderRadius: 16, overflow: 'hidden', ...SHADOW, shadowOpacity: 0.25, shadowRadius: 24 },
+  ticketStub: { backgroundColor: C.ink, flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 18 },
+  ticketStubText: { color: '#fff', fontSize: 10.5, fontWeight: '800', letterSpacing: 1 },
+  ticketBody: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
+  ticketEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: C.accent },
+  ticketName: { fontSize: 28, fontWeight: '900', color: C.ink, marginTop: 6, letterSpacing: -0.6 },
+  ticketRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16 },
+  ticketLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: C.faint },
+  ticketNum: { fontSize: 26, fontWeight: '900', color: C.ink, marginTop: 2 },
+  ticketFlags: { flexDirection: 'row', gap: 6 },
+  ticketFlag: { fontSize: 30, ...FLAG_FONT },
+  ticketMeta: { fontSize: 13, color: C.sub, marginTop: 12, ...FLAG_FONT },
+  perf: { height: 0, borderTopWidth: 1.5, borderColor: '#D1D5DB', borderStyle: 'dashed', marginHorizontal: 18, marginVertical: 4 },
+  ticketQrWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 22 },
+  ticketQr: { width: 150, height: 150 },
+  ticketQrLabel: { fontSize: 12.5, fontWeight: '700', color: C.sub, marginTop: 8 },
+  ticketActions: { width: '100%', maxWidth: 380, alignSelf: 'center', marginTop: 22 },
 
   // Env badge
   envBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', backgroundColor: '#F3F4F6', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 16 },

@@ -8,7 +8,7 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db, auth } from '../firebaseConfig';
 import { nextPosition } from './position';
 import env from './env';
 
@@ -47,11 +47,13 @@ export function subscribeToFans(cb, max = 150) {
 }
 
 // Atomically assigns a 1-based join position and writes the public + private
-// signup docs. Returns { position, firstName }. Race-safe: the counter
-// read+write is inside one transaction.
+// signup docs. Returns { position, firstName, id }. Race-safe: the counter
+// read+write is inside one transaction. The fan's anonymous uid (if signed in)
+// is stored on the private doc so writes can be tied to an identity.
 export async function submitSignup({ name, country, team, lookingType, lookingGoal }) {
   const fullName = name.trim();
   const firstName = fullName.split(/\s+/)[0] || fullName;
+  const uid = auth.currentUser ? auth.currentUser.uid : null;
 
   const counterRef = doc(db, 'counters', COUNTER_ID);
   const publicRef = doc(collection(db, SIGNUPS));
@@ -73,11 +75,12 @@ export async function submitSignup({ name, country, team, lookingType, lookingGo
     tx.set(privateRef, {
       fullName,
       lookingGoal: (lookingGoal || '').trim(),
+      uid,
       createdAt: serverTimestamp(),
     });
     tx.set(counterRef, { count: pos }, { merge: true });
     return pos;
   });
 
-  return { position, firstName };
+  return { position, firstName, id: publicRef.id };
 }

@@ -2,7 +2,7 @@
 // Replace firebaseConfig values with the web-app snippet from:
 // Firebase console → Project settings → Your apps → Web app → SDK setup.
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -16,4 +16,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Frictionless identity: sign each device in anonymously so every signup can be
+// tied to a Firebase uid (and rules can require auth). No login UI. This no-ops
+// gracefully until "Anonymous" sign-in is enabled in the Firebase console
+// (Authentication → Sign-in method → Anonymous).
+signInAnonymously(auth).catch(() => {});
+
 export const db = getFirestore(app);

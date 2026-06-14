@@ -17,10 +17,20 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Frictionless identity: sign each device in anonymously so every signup can be
-// tied to a Firebase uid (and rules can require auth). No login UI. This no-ops
-// gracefully until "Anonymous" sign-in is enabled in the Firebase console
-// (Authentication → Sign-in method → Anonymous).
-signInAnonymously(auth).catch(() => {});
+// Frictionless identity: sign each device in anonymously so every write is tied
+// to a Firebase uid and the rules can require auth. No login UI. Write paths
+// `await ensureAuth()` so a fast action can't beat the sign-in (which would be
+// denied under the require-auth rules). Resolves to null if sign-in fails.
+let authPromise = null;
+export function ensureAuth() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  if (!authPromise) {
+    authPromise = signInAnonymously(auth)
+      .then((cred) => cred.user)
+      .catch(() => null);
+  }
+  return authPromise;
+}
+ensureAuth(); // kick off sign-in on load
 
 export const db = getFirestore(app);

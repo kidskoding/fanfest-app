@@ -7,7 +7,7 @@ import {
   limit,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db, ensureAuth } from '../firebaseConfig';
 import env from './env';
 import { buildIntro } from './intro';
 
@@ -17,7 +17,8 @@ const FEED = `feed${env.suffix}`;
 
 // Auto-post a fan's intro to the feed. Best-effort: callers should not block
 // signup on this. `country` is kept for the flag shown next to the intro.
-export function postIntro({ firstName, country, team, lookingType, lookingGoal, position }) {
+export async function postIntro({ firstName, country, team, lookingType, lookingGoal, position }) {
+  await ensureAuth();
   return addDoc(collection(db, FEED), {
     firstName: firstName || '',
     country: country || '',

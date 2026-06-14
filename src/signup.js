@@ -8,7 +8,7 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, auth } from '../firebaseConfig';
+import { db, auth, ensureAuth } from '../firebaseConfig';
 import { nextPosition } from './position';
 import { postIntro } from './feed';
 import env from './env';
@@ -52,6 +52,7 @@ export function subscribeToFans(cb, max = 150) {
 // read+write is inside one transaction. The fan's anonymous uid (if signed in)
 // is stored on the private doc so writes can be tied to an identity.
 export async function submitSignup({ name, country, team, lookingType, lookingGoal }) {
+  await ensureAuth(); // require an (anonymous) identity before any write
   const fullName = name.trim();
   const firstName = fullName.split(/\s+/)[0] || fullName;
   const uid = auth.currentUser ? auth.currentUser.uid : null;

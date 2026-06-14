@@ -1,5 +1,5 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../firebaseConfig';
+import { db, auth, ensureAuth } from '../firebaseConfig';
 import env from './env';
 
 // Fan-insight survey. Questions are intentionally BLANK for now — fill in
@@ -54,6 +54,7 @@ const SURVEYS = `surveys${env.suffix}`;
 // Store one survey response set. Tied to the fan id (if known) for organizer
 // analysis; never read back by clients.
 export async function submitSurvey(fanId, responses) {
+  await ensureAuth();
   return addDoc(collection(db, SURVEYS), {
     fanId: fanId || null,
     uid: auth.currentUser ? auth.currentUser.uid : null,

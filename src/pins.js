@@ -8,7 +8,7 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, auth } from '../firebaseConfig';
+import { db, auth, ensureAuth } from '../firebaseConfig';
 import env from './env';
 
 // Virtual pin trading. Each fan's "pin" is their country. Meeting another fan
@@ -29,6 +29,7 @@ export async function getPublicFan(id) {
 // create is performed (rules deny updates), so re-trades don't error out.
 export async function recordTrade(me, them) {
   if (!me || !them || !me.id || !them.id || me.id === them.id) return 'invalid';
+  await ensureAuth();
   const pair = [me.id, them.id].sort();
   const ref = doc(db, CONNECTIONS, pair.join('__'));
   return runTransaction(db, async (tx) => {

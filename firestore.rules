@@ -1,13 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // MVP: public, no auth. The public `signups` directory is readable so fans
-    // can see the community; sensitive fields (full name, goal) live in the
-    // read-denied `signups_private`. Create rules validate shape/size to limit
-    // abuse. Accepted MVP risk: public counter writes could be inflated.
-    // HARDENING (parked): Anonymous Auth + App Check.
+    // Anonymous-auth MVP: every WRITE requires a signed-in identity
+    // (request.auth != null) to block scripted/bot abuse — clients sign in
+    // anonymously on load, so there is no login UI. Reads stay per-collection as
+    // documented. Dev sandboxes keep open read+delete for local tooling.
 
-    // -- Public fan directory --
+    function signedIn() { return request.auth != null; }
+
     function validPublicSignup() {
       return request.resource.data.firstName is string
              && request.resource.data.firstName.size() > 0
@@ -28,14 +28,11 @@ service cloud.firestore {
              && request.resource.data.lookingGoal is string
              && request.resource.data.lookingGoal.size() <= 280;
     }
-    // A pin trade between two fans. Public (boards are computed client-side from
-    // these). Validated shape; create-only so a trade can't be edited/removed.
     function validConnection() {
       return request.resource.data.participants is list
              && request.resource.data.participants.size() == 2
              && request.resource.data.fans is map;
     }
-    // A community-feed intro post. Public, create-only, shape/size validated.
     function validFeed() {
       return request.resource.data.text is string
              && request.resource.data.text.size() > 0
@@ -44,68 +41,68 @@ service cloud.firestore {
              && request.resource.data.firstName.size() <= 80;
     }
 
+    // -- Public fan directory --
     match /signups/{id} {
-      allow read: if true; // public directory (no sensitive fields here)
-      allow create: if validPublicSignup();
+      allow read: if true;
+      allow create: if signedIn() && validPublicSignup();
       allow update, delete: if false;
     }
     match /signups_private/{id} {
-      allow read: if false; // organizer-only fields; never exposed to clients
-      allow create: if validPrivateSignup();
+      allow read: if false;
+      allow create: if signedIn() && validPrivateSignup();
       allow update, delete: if false;
     }
-
-    // -- Dev sandboxes (local `expo start`): wide-open read + delete to inspect/wipe --
     match /signups_dev/{id} {
       allow read, delete: if true;
-      allow create: if validPublicSignup();
+      allow create: if signedIn() && validPublicSignup();
       allow update: if false;
     }
     match /signups_private_dev/{id} {
       allow read, delete: if true;
-      allow create: if validPrivateSignup();
+      allow create: if signedIn() && validPrivateSignup();
       allow update: if false;
     }
 
     // -- Pin trades --
     match /connections/{id} {
-      allow read: if true; // public; pin boards computed client-side
-      allow create: if validConnection();
+      allow read: if true;
+      allow create: if signedIn() && validConnection();
       allow update, delete: if false;
     }
     match /connections_dev/{id} {
       allow read, delete: if true;
-      allow create: if validConnection();
+      allow create: if signedIn() && validConnection();
       allow update: if false;
     }
 
-    // -- Fan-insight surveys (organizer-only, like signups_private) --
+    // -- Fan-insight surveys (organizer-only) --
     match /surveys/{id} {
       allow read: if false;
-      allow create: if request.resource.data.responses is map;
+      allow create: if signedIn() && request.resource.data.responses is map;
       allow update, delete: if false;
     }
     match /surveys_dev/{id} {
       allow read, delete: if true;
-      allow create: if request.resource.data.responses is map;
+      allow create: if signedIn() && request.resource.data.responses is map;
       allow update: if false;
     }
 
     // -- Community feed (auto-posted fan intros) --
     match /feed/{id} {
-      allow read: if true; // public community wall
-      allow create: if validFeed();
+      allow read: if true;
+      allow create: if signedIn() && validFeed();
       allow update, delete: if false;
     }
     match /feed_dev/{id} {
       allow read, delete: if true;
-      allow create: if validFeed();
+      allow create: if signedIn() && validFeed();
       allow update: if false;
     }
 
     match /counters/{id} {
       allow read: if true;
-      allow create, update: if request.resource.data.count is int
+      allow create, update: if signedIn()
+                            && request.resource.data.count is int
                             && request.resource.data.count >= 0;
       allow delete: if false;
     }
